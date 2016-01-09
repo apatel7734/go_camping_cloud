@@ -21,11 +21,14 @@ Parse.Cloud.define("addUpdateMember", function(request,response){
 	findCampingTripQuery.equalTo("objectId", campingTripId)
 	findCampingTripQuery.find().then(function(campingTrip) {
 		var families = campingTrip[0].get("families")
-		console.log("Families = "+families)
 		var findFamilyQuery = new Parse.Query("Family")
 		findFamilyQuery.containedIn("objectId",families)
 		findFamilyQuery.find().then(function(results){
-			response.success(results[0]);
+			var totalTripExpense = 0 
+			for (var i = results.length - 1; i >= 0; i--) {
+				totalTripExpense = totalTripExpense + results[i].get("totalExpense")
+			};
+			response.success(totalTripExpense);
 		}, function(error) {
 			response.error("Could not retrieve families : message " + error.message)
 		});
