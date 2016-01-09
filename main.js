@@ -10,6 +10,53 @@ var languages = ["en", "es", "ja", "kr", "pt-BR"];
 
 var twilio = require('twilio')(twilioAccountSid, twilioAuthToken);
 
+Parse.Cloud.define("addUpdateMember", function(request,response){
+	var memberName = request.params.memberName
+	var familyId = request.params.familyId
+	var phoneNumber = request.params.phoneNumber
+	var email = request.params.email
+	var age = request.age
+	var campingTripId = request.params.campingTripId
+	var query = new Parse.Query("CampingTrip")
+	
+	console.log(request.params);
+
+	query.find().then(function(campingTrip) {
+    console.log(campingTrip);
+    response.success(campingTrip);
+
+  }, function(error) {
+    // Make sure to catch any errors, otherwise you may see a "success/error not called" error in Cloud Code.
+    	response.error("Could not retrieve Posts, error " + error.code + ": " + error.message);
+  });
+});
+
+Parse.Cloud.define("deleteMember", function(request,response){
+	var memberId = request.params.memberId
+	var campingTripId = request.params.campingTripId
+
+	response.success()
+});
+
+Parse.Cloud.define("addUpdateExpense", function(request,response){
+	var expenseName = request.params.expenseName
+	var desc = request.params.desc
+	var amount = request.params.amount
+	var familyId = request.params.familyId
+	var campingTripId = request.params.campingTripId
+
+	var totalTripExpense = 
+
+	response.success()
+});
+
+Parse.Cloud.define("deleteExpense", function(request,response){
+	var expenseId = request.params.expenseId
+	var campingTripId = request.params.campingTripId
+	response.success()
+});
+
+
 Parse.Cloud.define("sendCode", function(req, res) {
 	var phoneNumber = req.params.phoneNumber;
 	phoneNumber = phoneNumber.replace(/\D/g, '');
@@ -99,3 +146,7 @@ function sendCodeSms(phoneNumber, code, language) {
 	});
 	return promise;
 }
+
+
+
+
