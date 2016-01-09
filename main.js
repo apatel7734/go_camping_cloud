@@ -17,17 +17,22 @@ Parse.Cloud.define("addUpdateMember", function(request,response){
 	var email = request.params.email
 	var age = request.age
 	var campingTripId = request.params.campingTripId
-	var query = new Parse.Query("CampingTrip")
-	
-	console.log(request.params);
-
-	query.find().then(function(campingTrip) {
-    console.log(campingTrip);
-    response.success(campingTrip);
+	var findCampingTripQuery = new Parse.Query("CampingTrip")
+	findCampingTripQuery.equalTo("objectId", campingTripId)
+	findCampingTripQuery.find().then(function(campingTrip) {
+		var families = campingTrip[0].get("families")
+		console.log("Families = "+families)
+		var findFamilyQuery = new Parse.Query("Family")
+		findFamilyQuery.containedIn("objectId",families)
+		findFamilyQuery.find().then(function(results){
+			response.success(results[0]);
+		}, function(error) {
+			response.error("Could not retrieve families : message " + error.message)
+		});
 
   }, function(error) {
     // Make sure to catch any errors, otherwise you may see a "success/error not called" error in Cloud Code.
-    	response.error("Could not retrieve Posts, error " + error.code + ": " + error.message);
+    	response.error("Could not retrieve campingTrip, error " + error.code + ": " + error.message);
   });
 });
 
