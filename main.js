@@ -18,6 +18,7 @@ Parse.Cloud.define("addUpdateMember", function(request,response){
 	var age = request.age
 	var campingTripId = request.params.campingTripId
 	var findCampingTripQuery = new Parse.Query("CampingTrip")
+
 	findCampingTripQuery.equalTo("objectId", campingTripId)
 	findCampingTripQuery.find().then(function(campingTrip) {
 		var families = campingTrip[0].get("families")
@@ -25,10 +26,20 @@ Parse.Cloud.define("addUpdateMember", function(request,response){
 		findFamilyQuery.containedIn("objectId",families)
 		findFamilyQuery.find().then(function(results){
 			var totalTripExpense = 0 
+			var totalTripMembers = 0
+			var familyWithTotalMembers = {}
 			for (var i = results.length - 1; i >= 0; i--) {
 				totalTripExpense = totalTripExpense + results[i].get("totalExpense")
+				totalTripMembers = totalTripMembers + results[i].get("memberIds").length
+				familyWithTotalMembers[results[i].id] = results[i].get("memberIds").length
+				console.log("Name = " + results[i].get("name"))
 			};
-			response.success(totalTripExpense);
+			var perMemberExpense = totalTripExpense / totalTripMembers
+			for (var i = families.length - 1; i >= 0; i--) {
+				families[i]
+			};
+
+			response.success(familyWithTotalMembers)
 		}, function(error) {
 			response.error("Could not retrieve families : message " + error.message)
 		});
@@ -38,6 +49,14 @@ Parse.Cloud.define("addUpdateMember", function(request,response){
     	response.error("Could not retrieve campingTrip, error " + error.code + ": " + error.message);
   });
 });
+
+function updateFamily(familyId,perMemberExpense){
+	var query = new Parse.Query("Family")
+	query.equalTo("objectId", familyId)
+	query.find().then(function(family){
+
+	});
+}
 
 Parse.Cloud.define("deleteMember", function(request,response){
 	var memberId = request.params.memberId
