@@ -11,49 +11,120 @@
 
 	var twilio = require('twilio')(twilioAccountSid, twilioAuthToken);
 
-	Parse.Cloud.define("addUpdateMember", function(request,response){
-		var memberName = request.params.memberName
-		var familyId = request.params.familyId
-		var phoneNumber = request.params.phoneNumber
-		var email = request.params.email
-		var age = request.age
-		var campingTripId = request.params.campingTripId
-		
+
+	function findCampingTripById(campingTripId){
 		var findCampingTripQuery = new Parse.Query("CampingTrip")
 		findCampingTripQuery.equalTo("objectId", campingTripId)
-		
-		findCampingTripQuery.first().then(function(campingTrip) {
-			var families = campingTrip.get("families")
+		return findCampingTripQuery.first()
+	}
 
-			var findFamilyQuery = new Parse.Query("Family")
-			findFamilyQuery.containedIn("objectId",families)
-			return findFamilyQuery.find()
+	function findExpensesByFamilyId(familyId){
+		var findExpenseQuery = new Parse.Query("Expense")
+		findExpenseQuery.equalTo("objectId",familyId)
+		return findExpenseQuery.find()
+	}
 
-	  	}, function(error) {
-	    	// Make sure to catch any errors, otherwise you may see a "success/error not called" error in Cloud Code.
-	    	response.error("Could not retrieve campingTrip, error " + error.code + ": " + error.message);
-	  	}).then(function(results){
+	function findFamiliesByIds(familyIds){
+		var findFamilyQuery = new Parse.Query("Family")
+		findFamilyQuery.containedIn("objectId",familyIds)
+		return findFamilyQuery.find()
+	}
 
-	  		var totalTripExpense = 0 
-			var totalTripMembers = 0
-			var familyWithTotalMembers = {}
-			for (var i = results.length - 1; i >= 0; i--) {
-				totalTripExpense = totalTripExpense + results[i].get("totalExpense")
-				totalTripMembers = totalTripMembers + results[i].get("memberIds").length
-				familyWithTotalMembers[results[i].id] = results[i].get("memberIds").length
-			};
+	function firstFamilyById(familyId){
+		var findFamilyQuery = new Parse.Query("Family")
+		findFamilyQuery.equalTo("objectId",familyId)
+		return findFamilyQuery.first()
+	}
 
-		 	var perMemberExpense = totalTripExpense / totalTripMembers
+	function updateFamiliesTotalExpense(familiesList){
+		var totalTripExpense = 0 
+		var totalTripMembers = 0
+		var familyWithTotalMembers = {}
+
+		for (var i = familiesList.length - 1; i >= 0; i--) {
+			totalTripExpense = totalTripExpense + familiesList[i].get("totalExpense")
+			totalTripMembers = totalTripMembers + familiesList[i].get("memberIds").length
+			familyWithTotalMembers[familiesList[i].id] = familiesList[i].get("memberIds").length
+		};
+
+		 var perMemberExpense = totalTripExpense / totalTripMembers
 			
-			_.each(results, function(family) {
-				var totalMembersCount = family.get("memberIds").length
-    			family.set("totalExpense", totalMembersCount * perMemberExpense)
-    		});
-    		return Parse.Object.saveAll(results)
+		_.each(familiesList, function(family) {
+			var totalMembersCount = family.get("memberIds").length
+			var currentTotalExpense = family.get("totalExpense")
+			console.log("familyId - " + family.id)
+			console.log("totalMembersCount - " + totalMembersCount)
+			console.log("perMemberExpense - " + perMemberExpense)
+			console.log("currentTotalExpense - " + currentTotalExpense)
+			var newTotalExpense = (totalMembersCount * perMemberExpense) - currentTotalExpense
+    		family.set("totalOwedExpense", newTotalExpense)
+    	});
+    	
+    	return Parse.Object.saveAll(familiesList)
+	}
 
-	  	}).then(function(result){
-	  		response.success(result)
-	  	});
+	function createNewMember(memberParams){
+		var Member = Parse.Object.extend("Member")
+		var member = new Member()
+		member.set("memberName",memberName)
+		member.set("familyId",memberParams.familyId)
+		member.set("phoneNumber",memberParams.phoneNumber)
+		member.set("email",memberParams.email)
+		member.set("age",memberParams.age)
+		return member.save()
+	}
+
+	function addMemberIdToFamily(memberId,familyId){
+		firstFamilyById(familyId).then(function(family){
+			family.addUnique("memberIds",memberId)
+			return family.save()
+		});
+	}
+
+	Parse.Cloud.define("addNewMember", function(request,response){
+		var memberParams = request.params
+
+		var campingTripId = request.params.campingTripId
+
+		var Member = Parse.Object.extend("Member");
+		var member = new Member()
+		member.set("name",memberParams.memberName)
+		member.set("familyId",memberParams.familyId)
+		member.set("phoneNumber",memberParams.phoneNumber)
+		member.set("email",memberParams.email)
+		member.set("age",memberParams.age)
+		member.save(null, {
+  			success: function(savedMember) {
+    			// addMemberIdToFamily(savedMember.id, memberParams.familyId).then(function(family){
+    			// 	console.log("Family savedMember - "+family.id)
+    			// });
+				firstFamilyById(memberParams.familyId).then(function(family){
+					family.addUnique("memberIds",savedMember.id)
+					console.log("Family = " + family.id)
+					return family.save(null, {
+						success: function(savedFamily){
+							findCampingTripById(campingTripId).then(function(campingTrip) {
+							var families = campingTrip.get("families")
+							return findFamiliesByIds(families)
+	  					}).then(function(results){
+	  						return updateFamiliesTotalExpense(results)
+	  					}).then(function(result){
+	  						response.success(result)
+	  					});
+							
+						},
+						error: function(savedFamily, error){
+							console.log("Saved Family = " + error)
+						}
+					});
+				});
+  			},
+  			error: function(notSavedMember, error) {
+    			// Execute any logic that should take place if the save fails.
+    			// error is a Parse.Error with an error code and message.
+    			console.log('Failed to create new object, with error code: ' + error.message);
+  			}
+  		});
 	});
 
 	Parse.Cloud.define("deleteMember", function(request,response){
@@ -69,8 +140,6 @@
 		var amount = request.params.amount
 		var familyId = request.params.familyId
 		var campingTripId = request.params.campingTripId
-
-		var totalTripExpense = 
 
 		response.success()
 	});
