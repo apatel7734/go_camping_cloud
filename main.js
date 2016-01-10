@@ -63,6 +63,12 @@
     	return Parse.Object.saveAll(familiesList)
 	}
 
+	function firstMemberbyId(memberId){
+		var firstmemberQuery = new Parse.Query("Member")
+		firstmemberQuery.equalTo("objectId",memberId)
+		return firstmemberQuery.first()
+	}
+
 	function createNewMember(memberParams){
 		var Member = Parse.Object.extend("Member")
 		var member = new Member()
@@ -95,9 +101,6 @@
 		member.set("age",memberParams.age)
 		member.save(null, {
   			success: function(savedMember) {
-    			// addMemberIdToFamily(savedMember.id, memberParams.familyId).then(function(family){
-    			// 	console.log("Family savedMember - "+family.id)
-    			// });
 				firstFamilyById(memberParams.familyId).then(function(family){
 					family.addUnique("memberIds",savedMember.id)
 					console.log("Family = " + family.id)
@@ -131,7 +134,33 @@
 		var memberId = request.params.memberId
 		var campingTripId = request.params.campingTripId
 
-		response.success()
+		firstMemberbyId(memberId).then(function(member){
+			member.destroy({
+				success: function(deletedMember) {
+					firstFamilyById(deletedMember.get("familyId")).then(function(family){
+						family.remove("memberIds",deletedMember.id)
+						family.save(null, {
+							success: function(updatedFamily){
+								findCampingTripById(campingTripId).then(function(campingTrip) {
+								var families = campingTrip.get("families")
+									return findFamiliesByIds(families)
+	  							}).then(function(results){
+	  								return updateFamiliesTotalExpense(results)
+	  							}).then(function(result){
+	  								response.success(result)
+	  							});
+							},
+							error: function(updateFamily,error){
+
+							}
+						});
+					});
+				},
+				error: function(member, error){
+					response.error("Error deleting member : " + member)
+				}
+			})
+		});
 	});
 
 	Parse.Cloud.define("addUpdateExpense", function(request,response){
