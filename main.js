@@ -69,17 +69,6 @@
 		return firstmemberQuery.first()
 	}
 
-	function createNewMember(memberParams){
-		var Member = Parse.Object.extend("Member")
-		var member = new Member()
-		member.set("memberName",memberName)
-		member.set("familyId",memberParams.familyId)
-		member.set("phoneNumber",memberParams.phoneNumber)
-		member.set("email",memberParams.email)
-		member.set("age",memberParams.age)
-		return member.save()
-	}
-
 	function addMemberIdToFamily(memberId,familyId){
 		firstFamilyById(familyId).then(function(family){
 			family.addUnique("memberIds",memberId)
@@ -163,19 +152,70 @@
 		});
 	});
 
-	Parse.Cloud.define("addUpdateExpense", function(request,response){
+	function findExpensesByFamilyId(familyId){
+		var findExpensesQuery = new Parse.Query("Expense")
+		findExpensesQuery.equalTo("familyId",familyId)
+		return findExpensesQuery.find()
+	}
+
+	Parse.Cloud.define("addNewExpense", function(request,response){
 		var expenseName = request.params.expenseName
 		var desc = request.params.desc
 		var amount = request.params.amount
 		var familyId = request.params.familyId
 		var campingTripId = request.params.campingTripId
 
-		response.success()
+		//Create Expense Object
+		var expense = new Parse.Object("Expense")
+		expense.set("name",expenseName)
+		expense.set("description",desc)
+		expense.set("amount",amount)
+		expense.set("familyId",familyId)
+		expense.save(null, {
+			success: function(savedExpense){
+				var totalExpenseForFamily = 0.0
+				findExpensesByFamilyId(familyId).then(function(expenses){
+					_.each(expenses, function(expense) {
+						totalExpenseForFamily = totalExpenseForFamily + expense.get("amount")
+    				});
+    				return firstFamilyById(familyId)
+				}).then(function(family){
+					family.addUnique("expenseIds",savedExpense.id)
+					family.set("totalExpense",totalExpenseForFamily)
+					family.save(null,{
+						success: function(savedFamily){
+							findCampingTripById(campingTripId).then(function(campingTrip) {
+							var families = campingTrip.get("families")
+							return findFamiliesByIds(families)
+	  					}).then(function(results){
+	  						return updateFamiliesTotalExpense(results)
+	  					}).then(function(result){
+	  						response.success(result)
+	  					});
+						},
+						error: function(family,error){
+
+						}
+					})
+				});
+			},
+			error: function(expense,error){
+
+			}
+		});
 	});
 
 	Parse.Cloud.define("deleteExpense", function(request,response){
 		var expenseId = request.params.expenseId
 		var campingTripId = request.params.campingTripId
+
+		response.success()
+	});
+
+	Parse.Cloud.define("updateExpense", function(request,response){
+		var expenseId = request.params.expenseId
+		var campingTripId = request.params.campingTripId
+
 		response.success()
 	});
 
