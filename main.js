@@ -158,6 +158,12 @@
 		return findExpensesQuery.find()
 	}
 
+	function firstExpenseById(expenseId){
+		var firstExpenseQuery = new Parse.Query("Expense")
+		firstExpenseQuery.equalTo("objectId",expenseId)
+		return firstExpenseQuery.first()
+	}
+
 	Parse.Cloud.define("addNewExpense", function(request,response){
 		var expenseName = request.params.expenseName
 		var desc = request.params.desc
@@ -208,8 +214,41 @@
 	Parse.Cloud.define("deleteExpense", function(request,response){
 		var expenseId = request.params.expenseId
 		var campingTripId = request.params.campingTripId
+		var removedAmount = 0
+		firstExpenseById(expenseId).then(function(expense) {
+			expense.destroy({
+				success: function(removedExpense){
+					removedAmount = removedExpense.get("amount")
+					console.log("RemovedExpense - "+removedAmount)
+					return firstFamilyById(expense.get("familyId")).then(function(family){
+					console.log("family - "+family.id)
+					family.remove("expenseIds",expenseId)
+					var currentTotalExpense = family.get("totalExpense")
+					var newTotalExpense = currentTotalExpense - removedAmount
+					family.set("totalExpense",newTotalExpense)
+					family.save(null, {
+						success: function(savedFamily){
+							findCampingTripById(campingTripId).then(function(campingTrip) {
+								var families = campingTrip.get("families")
+								return findFamiliesByIds(families)
+		  					}).then(function(results){
+		  						return updateFamiliesTotalExpense(results)
+		  					}).then(function(result){
+		  						response.success(result)
+		  					});
+						},
+						error: function(family,error){
 
-		response.success()
+						}
+					});
+			});
+				},
+				error: function(expense,error){
+
+				}
+			})
+		});
+
 	});
 
 	Parse.Cloud.define("updateExpense", function(request,response){
